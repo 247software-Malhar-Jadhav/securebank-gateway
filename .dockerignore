@@ -1,0 +1,11 @@
+# Keep the build context small and reproducible.
+target/
+.git/
+.github/
+.idea/
+*.iml
+.vscode/
+k8s/
+docs/
+*.md
+.gitignore

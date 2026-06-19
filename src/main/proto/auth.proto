@@ -1,0 +1,46 @@
+// AuthService gRPC contract.
+//
+// auth-service is the identity authority. It issues JWTs over its REST API (used by
+// browsers via the gateway) and exposes these gRPC RPCs for OTHER services and the
+// gateway to verify a token and look up a user WITHOUT every service re-implementing
+// JWT parsing or sharing the signing key. This is the "trusted internal authority"
+// pattern: validate centrally, propagate a small trusted claims object.
+syntax = "proto3";
+
+package securebank.auth.v1;
+
+option java_multiple_files = true;
+option java_package = "com.securebank.contracts.auth.v1";
+
+service AuthService {
+  // Called by the gateway on every authenticated request. Returns the decoded,
+  // verified claims so the gateway can forward X-User-Id / X-Roles downstream.
+  rpc ValidateToken (TokenRequest) returns (TokenClaims);
+
+  // Look up basic user info by id (used by other services that only store a user id).
+  rpc GetUser (UserIdRequest) returns (UserInfo);
+}
+
+message TokenRequest {
+  string access_token = 1;
+}
+
+// The verified result of a token. valid=false means the token is expired/forged;
+// callers must reject the request in that case.
+message TokenClaims {
+  bool   valid         = 1;
+  string user_id       = 2;
+  string username      = 3;
+  repeated string roles = 4;
+  string preferred_locale = 5; // en | hi | mr
+}
+
+message UserIdRequest { string user_id = 1; }
+
+message UserInfo {
+  string user_id   = 1;
+  string username  = 2;
+  string email     = 3;
+  repeated string roles = 4;
+  bool   enabled   = 5;
+}

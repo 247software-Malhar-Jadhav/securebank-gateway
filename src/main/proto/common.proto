@@ -1,0 +1,28 @@
+// Common, shared message types used across all SecureBank gRPC services.
+//
+// Why a dedicated "common" file: Money, page requests and error details recur in
+// every service. Defining them once keeps the wire format consistent and lets each
+// service map Money -> java.math.BigDecimal the same way.
+syntax = "proto3";
+
+package securebank.common.v1;
+
+option java_multiple_files = true;
+option java_package = "com.securebank.contracts.common.v1";
+
+// Money on the wire. We never put floating point money on a wire or in a DB.
+//  - currency: ISO-4217 (e.g. "INR", "USD")
+//  - units:    whole currency units (e.g. rupees)
+//  - nanos:    fractional units in nanos (10^-9). e.g. 1.25 -> units=1, nanos=250000000
+// Services convert this to BigDecimal(units + nanos/1e9) with scale 4.
+message Money {
+  string currency = 1;
+  int64  units    = 2;
+  int32  nanos    = 3;
+}
+
+// Standard pagination request reused by list RPCs.
+message PageRequest {
+  int32 page = 1;
+  int32 size = 2;
+}

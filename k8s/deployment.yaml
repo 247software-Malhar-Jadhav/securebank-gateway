@@ -1,0 +1,55 @@
+# Deployment for the SecureBank API gateway.
+# This is the single public-facing backend; the Ingress (in the platform repo) routes
+# external traffic to the Service in service.yaml, which fronts these pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: securebank-gateway
+  labels:
+    app: securebank-gateway
+spec:
+  # Two replicas for availability; the gateway is stateless so it scales horizontally.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: securebank-gateway
+  template:
+    metadata:
+      labels:
+        app: securebank-gateway
+      annotations:
+        # Prometheus scrape hints (the platform's Prometheus reads these).
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: gateway
+          image: securebank-gateway:0.1.0
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: securebank-gateway-config
+          # Actuator-based health probes. liveness uses /health/liveness,
+          # readiness uses /health/readiness (Spring Boot exposes these groups).
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "384Mi"
+            limits:
+              cpu: "1"
+              memory: "768Mi"

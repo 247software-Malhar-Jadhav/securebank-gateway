@@ -1,0 +1,13 @@
+# ConfigMap for the gateway. The docker/k8s profile already hard-codes the in-cluster
+# service names, so this ConfigMap mainly pins the active Spring profile and JVM opts.
+# Anything here can be overridden per-environment without rebuilding the image.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: securebank-gateway-config
+  labels:
+    app: securebank-gateway
+data:
+  SPRING_PROFILES_ACTIVE: "docker"
+  # Keep heap modest; the gateway is I/O-bound, not memory-bound.
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"

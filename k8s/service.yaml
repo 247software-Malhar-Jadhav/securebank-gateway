@@ -1,0 +1,18 @@
+# Service fronting the gateway pods.
+# This is the Service the platform's Ingress targets — i.e. the single entry point
+# for all external /api traffic into the SecureBank cluster (spec §0).
+# ClusterIP is sufficient because the Ingress (not the internet directly) routes to it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: securebank-gateway
+  labels:
+    app: securebank-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: securebank-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

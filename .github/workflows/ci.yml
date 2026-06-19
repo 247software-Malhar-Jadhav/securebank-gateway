@@ -1,0 +1,29 @@
+# CI for securebank-gateway (spec §7).
+# Builds the gateway and generates gRPC stubs from the vendored protos. protoc is
+# downloaded by protobuf-maven-plugin, so no extra system dependency is needed.
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build (compile + tests)
+        run: mvn -q -B package
+
+      - name: Build Docker image
+        run: docker build -t securebank-gateway:ci .

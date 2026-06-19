@@ -1,0 +1,149 @@
+# ============================================================================
+# SecureBank API Gateway — base configuration (default = "local" profile)
+# ============================================================================
+# This file targets a developer running the platform on localhost. Each service
+# listens on its own HTTP port (8081-8084). The "docker" profile in
+# application-docker.yml overrides the downstream hosts with k8s/compose service
+# names. See MICROSERVICES_SPEC §3 and §8.
+# ============================================================================
+
+server:
+  port: 8080   # the single public HTTP port (spec §1)
+
+spring:
+  application:
+    name: securebank-gateway
+
+  # Java 21 virtual threads. The gateway core is reactive, but enabling this makes
+  # the small amount of offloaded blocking work (the gRPC ValidateToken call,
+  # executed on boundedElastic) cheap to schedule.
+  threads:
+    virtual:
+      enabled: true
+
+  cloud:
+    gateway:
+      # -- Global default filters applied to every route ------------------------
+      default-filters:
+        # Strip the "/api" prefix is NOT done globally because some downstreams
+        # expect the full path; per-route rewrite is used instead (see below).
+        - name: DedupeResponseHeader
+          args:
+            name: Access-Control-Allow-Origin Access-Control-Allow-Credentials
+            strategy: RETAIN_UNIQUE
+
+      # -- HttpClient (Reactor Netty) global timeouts --------------------------
+      httpclient:
+        connect-timeout: 2000          # ms to establish a downstream TCP connection
+        response-timeout: 8s           # global ceiling; per-route timeouts tighten this
+
+      # -- Routes: public REST surface -> internal services (spec §3) ----------
+      routes:
+        # ---- auth-service : /api/auth/** -------------------------------------
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            # Per-route circuit breaker: on downstream 5xx / open circuit, forward
+            # to the local fallback controller instead of erroring the client.
+            - name: CircuitBreaker
+              args:
+                name: authCircuit
+                fallbackUri: forward:/__fallback
+
+        # ---- account-service : /api/accounts/** -----------------------------
+        - id: account-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/accounts/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: accountCircuit
+                fallbackUri: forward:/__fallback
+
+        # ---- transaction-service : /api/transactions/** ---------------------
+        - id: transaction-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/transactions/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: transactionCircuit
+                fallbackUri: forward:/__fallback
+
+        # ---- fraud-service : /api/insights/** AND /api/assistant/** ----------
+        # Fraud-service is gRPC-first (spec §1) but exposes the AI insights/assistant
+        # HTTP surface here behind the gateway.
+        - id: fraud-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/insights/**,/api/assistant/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: fraudCircuit
+                fallbackUri: forward:/__fallback
+
+# ---- gRPC client: address of the AuthService (spec: auth grpc port 9091) -----
+# net.devh resolves "auth-service" (used by @GrpcClient) from this block.
+# 'plaintext' negotiation because this is internal traffic; in prod use TLS/mTLS.
+grpc:
+  client:
+    auth-service:
+      address: "static://localhost:9091"
+      negotiation-type: plaintext
+
+# ---- Resilience4j: per-circuit behaviour ------------------------------------
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 20
+        failure-rate-threshold: 50         # open at 50% failures in the window
+        wait-duration-in-open-state: 10s   # cool-off before half-open probing
+        permitted-number-of-calls-in-half-open-state: 3
+    instances:
+      authCircuit:
+        base-config: default
+      accountCircuit:
+        base-config: default
+      transactionCircuit:
+        base-config: default
+      fraudCircuit:
+        base-config: default
+  # Per-route response timeouts (the TimeLimiter the CircuitBreaker filter uses).
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 6s
+    instances:
+      authCircuit:
+        timeout-duration: 4s        # auth should be quick
+      accountCircuit:
+        timeout-duration: 6s
+      transactionCircuit:
+        timeout-duration: 8s        # transfers may take longer (locks downstream)
+      fraudCircuit:
+        timeout-duration: 8s        # AI scoring can be slower
+
+# ---- Observability: actuator + Prometheus (spec §1) -------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# ---- Logging ----------------------------------------------------------------
+logging:
+  level:
+    com.securebank.gateway: INFO
+    org.springframework.cloud.gateway: INFO

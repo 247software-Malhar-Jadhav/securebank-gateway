@@ -1,0 +1,67 @@
+# ============================================================================
+# SecureBank API Gateway — "docker" profile overrides
+# ============================================================================
+# Activated with SPRING_PROFILES_ACTIVE=docker (set in the Dockerfile / k8s
+# deployment / docker-compose). The ONLY differences from the base config are the
+# downstream hostnames: inside the docker network / k8s cluster we address
+# services by their service NAME instead of localhost (spec §0, §8).
+# ============================================================================
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authCircuit
+                fallbackUri: forward:/__fallback
+
+        - id: account-service
+          uri: http://account-service:8082
+          predicates:
+            - Path=/api/accounts/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: accountCircuit
+                fallbackUri: forward:/__fallback
+
+        - id: transaction-service
+          uri: http://transaction-service:8083
+          predicates:
+            - Path=/api/transactions/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: transactionCircuit
+                fallbackUri: forward:/__fallback
+
+        - id: fraud-service
+          uri: http://fraud-service:8084
+          predicates:
+            - Path=/api/insights/**,/api/assistant/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: fraudCircuit
+                fallbackUri: forward:/__fallback
+
+# AuthService gRPC reached by service name on its gRPC port (9091, spec §8).
+grpc:
+  client:
+    auth-service:
+      address: "static://auth-service:9091"
+      negotiation-type: plaintext
+
+# Enable Kubernetes-style liveness/readiness health groups so the deployment probes
+# (k8s/deployment.yaml) have endpoints to hit.
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

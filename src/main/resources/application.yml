@@ -52,6 +52,18 @@ spring:
                 name: authCircuit
                 fallbackUri: forward:/__fallback
 
+        # ---- account transactions list -> transaction-service ---------------
+        # MORE SPECIFIC than /api/accounts/** so it must be listed FIRST (first match wins).
+        - id: account-transactions
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/accounts/*/transactions
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: transactionCircuit
+                fallbackUri: forward:/__fallback
+
         # ---- account-service : /api/accounts/** -----------------------------
         - id: account-service
           uri: http://localhost:8082

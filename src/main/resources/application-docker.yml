@@ -21,6 +21,19 @@ spring:
                 name: authCircuit
                 fallbackUri: forward:/__fallback
 
+        # The per-account transaction history lives in transaction-service. This route
+        # is MORE SPECIFIC than /api/accounts/** below, so it must be listed FIRST
+        # (Spring Cloud Gateway matches routes top-to-bottom; first match wins).
+        - id: account-transactions
+          uri: http://transaction-service:8083
+          predicates:
+            - Path=/api/accounts/*/transactions
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: transactionCircuit
+                fallbackUri: forward:/__fallback
+
         - id: account-service
           uri: http://account-service:8082
           predicates:

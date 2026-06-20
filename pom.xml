@@ -53,6 +53,14 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Converge every io.grpc:* artifact on one version (avoids classpath skew). -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -94,6 +102,17 @@
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-netty-shaded</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <!--
+          Spring Cloud Gateway's gRPC support (GrpcSslConfigurer) is auto-configured when
+          gRPC is on the classpath and requires the UN-shaded io.grpc.netty.NettyChannelBuilder.
+          The net.devh client only brings grpc-netty-shaded, so add grpc-netty explicitly,
+          otherwise the gateway fails to start with NoClassDefFoundError: NettyChannelBuilder.
+        -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty</artifactId>
             <version>${grpc.version}</version>
         </dependency>
         <dependency>

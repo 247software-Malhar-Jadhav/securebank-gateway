@@ -44,6 +44,17 @@ spring:
                 name: accountCircuit
                 fallbackUri: forward:/__fallback
 
+        # Saved payees live in account-service too.
+        - id: beneficiaries
+          uri: http://account-service:8082
+          predicates:
+            - Path=/api/beneficiaries/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: accountCircuit
+                fallbackUri: forward:/__fallback
+
         - id: transaction-service
           uri: http://transaction-service:8083
           predicates:

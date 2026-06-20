@@ -75,6 +75,17 @@ spring:
                 name: accountCircuit
                 fallbackUri: forward:/__fallback
 
+        # ---- beneficiaries (saved payees) -> account-service ----------------
+        - id: beneficiaries
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/beneficiaries/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: accountCircuit
+                fallbackUri: forward:/__fallback
+
         # ---- transaction-service : /api/transactions/** ---------------------
         - id: transaction-service
           uri: http://localhost:8083
